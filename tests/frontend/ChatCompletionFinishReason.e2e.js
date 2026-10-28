@@ -57,19 +57,6 @@ async function generateWithMockedBackend(page, { body }) {
 test.describe('Chat Completion finish reason notice', () => {
     test.beforeEach(testSetup.awaitST);
 
-    test.beforeEach(async ({ page }) => {
-        // A fresh account runs onboarding on load: dismiss its popups so toasts land in the page.
-        await page.evaluate(async () => {
-            const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-            for (let i = 0; i < 10; i++) {
-                const okButton = document.querySelector('.popup:popover-open .popup-button-ok, dialog[open] .popup-button-ok');
-                if (!okButton) break;
-                okButton.click();
-                await delay(300);
-            }
-        });
-    });
-
     test('shows no notice when the reply finished normally', async ({ page }) => {
         const result = await generateWithMockedBackend(page, {
             body: { choices: [{ index: 0, message: { role: 'assistant', content: 'Full reply.' }, finish_reason: 'stop' }] },

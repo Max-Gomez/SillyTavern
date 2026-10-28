@@ -1717,9 +1717,11 @@ function checkModerationError(data, { quiet = false } = {}) {
 /**
  * Shows a notice if the API stopped the reply early (length limit or content filter).
  * @param {any} data Response data or streaming chunk
- * @returns {boolean} Whether a notice was shown
+ * @param {object} [options]
+ * @param {boolean?} [options.quiet=false] Suppress toast messages
+ * @returns {boolean} Whether the reply was stopped early
  */
-function checkFinishReason(data) {
+function checkFinishReason(data, { quiet = false } = {}) {
     const finishReason = data?.choices?.[0]?.finish_reason
         ?? data?.candidates?.[0]?.finishReason
         ?? data?.delta?.stop_reason
@@ -1733,17 +1735,17 @@ function checkFinishReason(data) {
         case 'length':
         case 'max_tokens':
         case 'model_length':
-            toastr.warning(t`The reply was cut off because it reached the maximum response length.`, t`Response stopped early`);
+            !quiet && toastr.warning(t`The reply was cut off because it reached the maximum response length.`, t`Response stopped early`);
             return true;
         case 'content_filter':
         case 'refusal':
-        case 'safety':
+        case 'safety': // Gemini: https://ai.google.dev/api/generate-content#FinishReason
         case 'recitation':
         case 'blocklist':
         case 'prohibited_content':
         case 'spii':
         case 'image_safety':
-            toastr.warning(t`The reply was stopped by the API content filter (${finishReason}).`, t`Response stopped early`);
+            !quiet && toastr.warning(t`The reply was stopped by the API content filter (${finishReason}).`, t`Response stopped early`);
             return true;
         default:
             return false;
@@ -3242,7 +3244,7 @@ async function sendOpenAIRequest(type, messages, signal, { jsonSchema = null } =
             throw new Error(message);
         }
 
-        checkFinishReason(data);
+        checkFinishReason(data, { quiet: type === 'quiet' });
 
         if (type !== 'quiet') {
             const logprobs = parseChatCompletionLogprobs(data);
