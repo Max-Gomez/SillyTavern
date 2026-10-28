@@ -2509,6 +2509,9 @@ router.post('/generate', async function (request, response) {
                     'ttl': cacheTTL,
                 };
             }
+            if (cachingAtDepth !== -1 && isClaude && Array.isArray(request.body.messages)) {
+                cachingAtDepthForOpenRouterClaude(request.body.messages, cachingAtDepth, cacheTTL);
+            }
         } else if (request.body.chat_completion_source === CHAT_COMPLETION_SOURCES.POLLINATIONS) {
             const isAnonymous = request.body.pollinations_endpoint === POLLINATIONS_ENDPOINT.ANONYMOUS;
             apiUrl = isAnonymous ? API_POLLINATIONS_ANON : API_POLLINATIONS;
