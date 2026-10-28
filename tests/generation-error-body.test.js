@@ -3,9 +3,8 @@ import { describe, expect, test } from '@jest/globals';
 import { generationErrorBody } from '../src/util.js';
 
 describe('generationErrorBody', () => {
-    test('keeps a socket hang-up message where generate toasts read it', () => {
+    test('keeps the error message where both generate clients read it', () => {
         const error = new Error('request to https://example.test/generate failed, reason: socket hang up');
-        error.code = 'ECONNRESET';
 
         expect(generationErrorBody(error)).toEqual({
             error: { message: error.message },
@@ -13,7 +12,10 @@ describe('generationErrorBody', () => {
         });
     });
 
-    test('leaves any other failure as { error: true }', () => {
-        expect(generationErrorBody(Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }))).toEqual({ error: true });
+    test('falls back to a generic message when there is none', () => {
+        expect(generationErrorBody({})).toEqual({
+            error: { message: 'Unknown error occurred' },
+            response: 'Unknown error occurred',
+        });
     });
 });

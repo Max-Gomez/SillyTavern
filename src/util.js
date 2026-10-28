@@ -175,21 +175,14 @@ export function delay(ms) {
 }
 
 /**
- * Error body for a failed generate call.
- * Chat toasts read error.message; text completion toasts read response.
- * Anything that is not a socket hang-up stays { error: true }.
- * @param {any} error Caught request error
- * @returns {{ error: true | { message: string }, response?: string }}
+ * Builds the response body for a failed generation request.
+ * Chat Completion clients read error.message, Text Completion clients read response.
+ * @param {any} error Caught error
+ * @returns {{ error: { message: string }, response: string }} Error body
  */
 export function generationErrorBody(error) {
-    const code = error?.code ?? error?.cause?.code;
-    const message = `${error?.message ?? ''} ${error?.cause?.message ?? ''}`;
-    if (code !== 'ECONNRESET' && !message.includes('socket hang up')) {
-        return { error: true };
-    }
-
-    const text = error?.message || error?.cause?.message || 'socket hang up';
-    return { error: { message: text }, response: text };
+    const message = error?.message || 'Unknown error occurred';
+    return { error: { message }, response: message };
 }
 
 /**
