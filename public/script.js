@@ -6535,13 +6535,22 @@ export function cleanUpMessage({ getMessage, isImpersonate, isContinue, displayI
 
     // Remove instruct sequences leaking to the output
     if (isInstruct && power_user.instruct.sequences_as_stop_strings) {
+        // When continuing a user message, the output sequence marks the start of the character's turn.
+        // Cut the message there instead of stripping the sequence and merging that turn into the user message.
+        const isUserContinue = isContinue && chat[chat.length - 1]?.is_user;
         const sequences = [
             { value: power_user.instruct.input_sequence, apply: isImpersonate && isNotEmpty(power_user.instruct.input_sequence) },
             { value: power_user.instruct.output_sequence, apply: !isImpersonate && isNotEmpty(power_user.instruct.output_sequence) },
             { value: power_user.instruct.last_output_sequence, apply: !isImpersonate && isNotEmpty(power_user.instruct.last_output_sequence) },
         ];
         for (const seq of sequences.filter(s => s.apply)) {
-            seq.value.split('\n').filter(line => line.trim() !== '').forEach(line => { getMessage = getMessage.replaceAll(line, ''); });
+            seq.value.split('\n').filter(line => line.trim() !== '').forEach(line => {
+                if (isUserContinue && getMessage.includes(line)) {
+                    getMessage = getMessage.substring(0, getMessage.indexOf(line));
+                    return;
+                }
+                getMessage = getMessage.replaceAll(line, '');
+            });
         }
     }
 
