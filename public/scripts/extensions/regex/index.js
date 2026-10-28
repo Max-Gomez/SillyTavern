@@ -166,26 +166,20 @@ class RegexPresetManager {
 
         this.presetSelect.addEventListener('change', async (event) => {
             const selectedPresetId = this.presetSelect.value;
-            const fromSlashCommand = event instanceof CustomEvent && event?.detail?.fromSlashCommand === true;
 
             // Check for unsaved changes before switching
-            if (!fromSlashCommand) {
-                const canProceed = await this.checkUnsavedChanges();
-                if (!canProceed) {
-                    // Revert the selection
-                    event.preventDefault();
-                    const currentPreset = extension_settings.regex_presets.find(p => p.id === this.currentPresetId);
-                    if (currentPreset) {
-                        this.presetSelect.value = currentPreset.id;
-                    }
-                    return;
+            const canProceed = await this.checkUnsavedChanges();
+            if (!canProceed) {
+                // Revert the selection
+                event.preventDefault();
+                const currentPreset = extension_settings.regex_presets.find(p => p.id === this.currentPresetId);
+                if (currentPreset) {
+                    this.presetSelect.value = currentPreset.id;
                 }
+                return;
             }
 
-            await this.applyPreset(selectedPresetId);
-            extension_settings.regex_presets.forEach(p => { p.isSelected = p.id === selectedPresetId; });
-            saveSettingsDebounced();
-            this.updateStoredState(selectedPresetId);
+            await this.selectPreset(selectedPresetId);
         });
 
         this.presetCreateButton = document.getElementById('regex_preset_create');
@@ -265,7 +259,7 @@ class RegexPresetManager {
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
             name: 'regex-preset',
             helpString: t`Selects a regex preset by name or ID. Gets the current regex preset ID if no argument is provided.`,
-            callback: (args, name) => {
+            callback: async (args, name) => {
                 if (!this.presetSelect) {
                     return '';
                 }
@@ -278,7 +272,7 @@ class RegexPresetManager {
 
                     if (foundId) {
                         this.presetSelect.value = foundId;
-                        this.presetSelect.dispatchEvent(new CustomEvent('change', { detail: { fromSlashCommand: true } }));
+                        await this.selectPreset(foundId);
                         return foundId;
                     }
 
@@ -359,6 +353,18 @@ class RegexPresetManager {
         });
 
         await saveFunction(targetList);
+    }
+
+    /**
+     * Applies a regex preset and remembers it as the selected one.
+     * @param {string} presetId - The ID of the preset to select
+     * @returns {Promise<void>}
+     */
+    async selectPreset(presetId) {
+        await this.applyPreset(presetId);
+        extension_settings.regex_presets.forEach(p => { p.isSelected = p.id === presetId; });
+        saveSettingsDebounced();
+        this.updateStoredState(presetId);
     }
 
     /**
