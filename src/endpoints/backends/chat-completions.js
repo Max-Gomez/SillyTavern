@@ -124,20 +124,20 @@ function getAffinityKey() {
 }
 
 /**
- * Cache for cacheable (writing) OpenRouter model IDs.
- * @type {string[]}
+ * Cache for OpenRouter model metadata, keyed by model ID.
+ * @type {Map<string, any>}
  */
-const openRouterCacheableModels = [];
+const openRouterModels = new Map();
 
 /**
- * Checks if an OpenRouter model supports prompt cache writing.
+ * Gets the metadata of an OpenRouter model.
  * Uses a cache to avoid repeated API calls.
  * @param {string} modelId - The OpenRouter model ID
- * @returns {Promise<boolean>} `true` if the model supports writing cache
+ * @returns {Promise<any>} Model metadata, or `undefined` if unavailable
  */
-async function isOpenRouterModelCacheable(modelId) {
-    if (openRouterCacheableModels.includes(modelId)) {
-        return true;
+async function getOpenRouterModel(modelId) {
+    if (openRouterModels.has(modelId)) {
+        return openRouterModels.get(modelId);
     }
 
     try {
@@ -149,7 +149,7 @@ async function isOpenRouterModelCacheable(modelId) {
 
         if (!response.ok) {
             console.warn(`OpenRouter models API returned ${response.status}: ${response.statusText}`);
-            return false;
+            return undefined;
         }
 
         /** @type {any} */
@@ -157,21 +157,38 @@ async function isOpenRouterModelCacheable(modelId) {
 
         if (!Array.isArray(data?.data)) {
             console.warn('OpenRouter API response format unexpected');
-            return false;
+            return undefined;
         }
 
-        const model = data.data.find(m => m.id === modelId);
-        const supportsCache = model?.pricing?.input_cache_write != null;
-
-        if (supportsCache) {
-            openRouterCacheableModels.push(modelId);
+        for (const model of data.data) {
+            openRouterModels.set(model.id, model);
         }
 
-        return supportsCache;
+        return openRouterModels.get(modelId);
     } catch (error) {
-        console.warn(`Failed to check OpenRouter cache support for ${modelId}:`, error.message);
-        return false;
+        console.warn(`Failed to fetch OpenRouter model info for ${modelId}:`, error.message);
+        return undefined;
     }
+}
+
+/**
+ * Checks if an OpenRouter model supports prompt cache writing.
+ * @param {string} modelId - The OpenRouter model ID
+ * @returns {Promise<boolean>} `true` if the model supports writing cache
+ */
+async function isOpenRouterModelCacheable(modelId) {
+    const model = await getOpenRouterModel(modelId);
+    return model?.pricing?.input_cache_write != null;
+}
+
+/**
+ * Checks if an OpenRouter model supports tool calling.
+ * @param {string} modelId - The OpenRouter model ID
+ * @returns {Promise<boolean>} `true` if the model supports tools
+ */
+async function isOpenRouterModelToolCapable(modelId) {
+    const model = await getOpenRouterModel(modelId);
+    return Boolean(model?.supported_parameters?.includes('tools'));
 }
 
 /**
@@ -193,12 +210,15 @@ function getOpenRouterTransforms(request) {
 /**
  * Gets OpenRouter plugins based on the request.
  * @param {import('express').Request} request
+ * @param {boolean} useWebSearchTool Whether the web search server tool is used instead of the plugin
  * @returns {any[]} OpenRouter plugins
  */
-function getOpenRouterPlugins(request) {
+function getOpenRouterPlugins(request, useWebSearchTool) {
     const plugins = [];
 
-    if (request.body.enable_web_search) {
+    // The web plugin is deprecated in favor of the server tool, but it's still the only option for models without tool support.
+    // https://openrouter.ai/docs/guides/features/server-tools/web-search#migrating-from-the-web-search-plugin
+    if (request.body.enable_web_search && !useWebSearchTool) {
         plugins.push({ 'id': 'web' });
     }
 
@@ -2304,13 +2324,19 @@ router.post('/generate', async function (request, response) {
             // OpenRouter needs to pass the Referer and X-Title: https://openrouter.ai/docs#requests
             headers = { ...OPENROUTER_HEADERS };
             const includeReasoning = Boolean(request.body.include_reasoning);
+            const useWebSearchTool = Boolean(request.body.enable_web_search) && await isOpenRouterModelToolCapable(request.body.model);
             bodyParams = {
                 transforms: getOpenRouterTransforms(request),
-                plugins: getOpenRouterPlugins(request),
+                plugins: getOpenRouterPlugins(request, useWebSearchTool),
                 reasoning: {
                     exclude: !includeReasoning,
                 },
             };
+
+            if (useWebSearchTool) {
+                const tools = Array.isArray(request.body.tools) ? request.body.tools : [];
+                request.body.tools = [...tools, { type: 'openrouter:web_search' }];
+            }
 
             if (request.body.logprobs > 0) {
                 bodyParams['top_logprobs'] = request.body.logprobs;
