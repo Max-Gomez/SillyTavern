@@ -1,11 +1,13 @@
 import util from 'node:util';
 import { Buffer } from 'node:buffer';
 
-import fetch from 'node-fetch';
+import nodeFetch from 'node-fetch';
 import express from 'express';
 
 import { readSecret, SECRET_KEYS } from './secrets.js';
-import { readAllChunks, extractFileFromZipBuffer, forwardFetchResponse } from '../util.js';
+import { fetchRetryingSocketHangUp, readAllChunks, extractFileFromZipBuffer, forwardFetchResponse, isSocketHangUpError, socketHangUpErrorBody } from '../util.js';
+
+const fetch = (url, options) => fetchRetryingSocketHangUp(nodeFetch, url, options);
 
 const API_NOVELAI = 'https://api.novelai.net';
 const TEXT_NOVELAI = 'https://text.novelai.net';
@@ -293,6 +295,10 @@ router.post('/generate', async function (req, res) {
             return res.send(data);
         }
     } catch (error) {
+        console.error('NovelAI generation failed:', error);
+        if (isSocketHangUpError(error)) {
+            return res.status(502).send(socketHangUpErrorBody(error));
+        }
         return res.send({ error: true });
     }
 });

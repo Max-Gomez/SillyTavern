@@ -3901,6 +3901,10 @@ class StreamingProcessor {
             // in the case of a self-inflicted abort, we have already cleaned up
             if (!this.isFinished) {
                 console.error(err);
+                const message = err?.error?.message || err?.message;
+                if (message && err?.name !== 'AbortError' && !this.abortController.signal.aborted) {
+                    toastr.error(message, t`Text generation error`, { timeOut: 10000, extendedTimeOut: 20000, preventDuplicates: true });
+                }
                 this.onErrorStreaming();
             }
             return this.result;

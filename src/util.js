@@ -174,6 +174,57 @@ export function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/** Attempts before a socket hang-up gives up, including the first try. */
+export const SOCKET_HANG_UP_ATTEMPTS = 3;
+
+/**
+ * A Node fetch failure whose message is "socket hang up" (ECONNRESET).
+ * @param {any} error Thrown fetch error
+ * @returns {boolean} True when the connection dropped before a response
+ */
+export function isSocketHangUpError(error) {
+    const code = error?.code ?? error?.errno ?? error?.cause?.code;
+    if (code === 'ECONNRESET') {
+        return true;
+    }
+    const message = `${error?.message ?? ''} ${error?.cause?.message ?? ''}`;
+    return message.includes('socket hang up');
+}
+
+/**
+ * Body both chat-completion and text-completion clients already know how to show.
+ * @param {any} error Thrown fetch error
+ * @returns {{ error: { message: string }, response: string }}
+ */
+export function socketHangUpErrorBody(error) {
+    const message = error?.message || 'socket hang up';
+    return { error: { message }, response: message };
+}
+
+/**
+ * Re-runs a fetch when the socket hangs up, at most {@link SOCKET_HANG_UP_ATTEMPTS} times.
+ * Other errors, and an already-aborted signal, are not retried.
+ * @param {typeof fetch} fetchImpl Fetch implementation
+ * @param {any} url Request URL
+ * @param {any} [options] Fetch options
+ * @param {{ attempts?: number, delayMs?: number, sleep?: (ms: number) => Promise<void> }} [retryOptions]
+ * @returns {Promise<any>} Fetch response
+ */
+export async function fetchRetryingSocketHangUp(fetchImpl, url, options, { attempts = SOCKET_HANG_UP_ATTEMPTS, delayMs = 250, sleep = delay } = {}) {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+            return await fetchImpl(url, options);
+        } catch (error) {
+            const giveUp = Boolean(options?.signal?.aborted) || !isSocketHangUpError(error) || attempt >= attempts;
+            if (giveUp) {
+                throw error;
+            }
+            console.warn(`Socket hang-up. Retry attempt ${attempt + 1} of ${attempts}...`);
+            await sleep(delayMs * attempt);
+        }
+    }
+}
+
 /**
  * Generates a random hex string of the given length.
  * @param {number} length String length

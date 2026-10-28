@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import express from 'express';
-import fetch from 'node-fetch';
+import nodeFetch from 'node-fetch';
 
-import { forwardFetchResponse, delay } from '../../util.js';
+import { fetchRetryingSocketHangUp, forwardFetchResponse, delay, isSocketHangUpError, socketHangUpErrorBody } from '../../util.js';
 import { getOverrideHeaders, setAdditionalHeaders, setAdditionalHeadersByType } from '../../additional-headers.js';
 import { TEXTGEN_TYPES } from '../../constants.js';
+
+const fetch = (url, options) => fetchRetryingSocketHangUp(nodeFetch, url, options);
 
 export const router = express.Router();
 
@@ -128,6 +130,10 @@ router.post('/generate', async function (request, response_generate) {
                     await delay(delayAmount);
                     break;
                 default:
+                    if (isSocketHangUpError(error)) {
+                        console.error('Kobold generation failed:', error);
+                        return response_generate.status(502).send(socketHangUpErrorBody(error));
+                    }
                     if ('status' in error) {
                         console.error('Status Code from Kobold:', error.status);
                     }

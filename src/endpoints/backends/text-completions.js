@@ -1,5 +1,5 @@
 import { Readable } from 'node:stream';
-import fetch from 'node-fetch';
+import nodeFetch from 'node-fetch';
 import express from 'express';
 import _ from 'lodash';
 
@@ -13,9 +13,11 @@ import {
     FEATHERLESS_KEYS,
     OPENAI_KEYS,
 } from '../../constants.js';
-import { forwardFetchResponse, trimV1, getConfigValue } from '../../util.js';
+import { fetchRetryingSocketHangUp, forwardFetchResponse, trimV1, getConfigValue } from '../../util.js';
 import { setAdditionalHeaders } from '../../additional-headers.js';
 import { createHash } from 'node:crypto';
+
+const fetch = (url, options) => fetchRetryingSocketHangUp(nodeFetch, url, options);
 
 export const router = express.Router();
 

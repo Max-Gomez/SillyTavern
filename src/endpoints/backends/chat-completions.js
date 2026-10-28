@@ -3,7 +3,7 @@ import { createHmac } from 'node:crypto';
 import process from 'node:process';
 import util from 'node:util';
 import express from 'express';
-import fetch from 'node-fetch';
+import nodeFetch from 'node-fetch';
 import urlJoin from 'url-join';
 
 import {
@@ -24,8 +24,11 @@ import {
     POLLINATIONS_ENDPOINT,
 } from '../../constants.js';
 import {
+    fetchRetryingSocketHangUp,
     forwardFetchResponse,
     getConfigValue,
+    isSocketHangUpError,
+    socketHangUpErrorBody,
     tryParse,
     uuidv4,
     mergeObjectWithYaml,
@@ -69,6 +72,34 @@ import {
 import { getVertexAIAuth, getProjectIdFromServiceAccount } from '../google.js';
 import { getCookieSecret } from '../../users.js';
 import { fetchGoogleModels, GoogleModelsHttpError } from './google-models.js';
+
+const fetch = (url, options) => fetchRetryingSocketHangUp(nodeFetch, url, options);
+
+/**
+ * Sends a generation failure. A socket hang-up keeps its message so the UI can show it.
+ * @param {import('express').Response} response Express response
+ * @param {any} error Caught error
+ * @param {{ status?: number }} [options] Status used when this is not a socket hang-up
+ * @returns {import('express').Response}
+ */
+function sendCaughtGenerationError(response, error, { status = 200 } = {}) {
+    if (response.headersSent) {
+        if (!response.writableEnded) {
+            response.end();
+        }
+        return response;
+    }
+
+    if (isSocketHangUpError(error)) {
+        return response.status(502).send(socketHangUpErrorBody(error));
+    }
+
+    if (status !== 200) {
+        return response.status(status).send({ error: true });
+    }
+
+    return response.send({ error: true });
+}
 
 const API_OPENAI = 'https://api.openai.com/v1';
 const API_CLAUDE = 'https://api.anthropic.com/v1';
@@ -440,9 +471,7 @@ async function sendClaudeRequest(request, response) {
         }
     } catch (error) {
         console.error(color.red(`Error communicating with Claude: ${error}\n${divider}`));
-        if (!response.headersSent) {
-            return response.status(500).send({ error: true });
-        }
+        return sendCaughtGenerationError(response, error, { status: 500 });
     }
 }
 
@@ -743,9 +772,7 @@ async function sendMakerSuiteRequest(request, response) {
                 await forwardFetchResponse(generateResponse, response);
             } catch (error) {
                 console.error('Error forwarding streaming response:', error);
-                if (!response.headersSent) {
-                    return response.status(500).send({ error: true });
-                }
+                return sendCaughtGenerationError(response, error, { status: 500 });
             }
         } else {
             if (!generateResponse.ok) {
@@ -786,9 +813,7 @@ async function sendMakerSuiteRequest(request, response) {
         }
     } catch (error) {
         console.error(`Error communicating with ${apiName} API:`, error);
-        if (!response.headersSent) {
-            return response.status(500).send({ error: true });
-        }
+        return sendCaughtGenerationError(response, error, { status: 500 });
     }
 }
 
@@ -865,11 +890,7 @@ async function sendAI21Request(request, response) {
         }
     } catch (error) {
         console.error('Error communicating with AI21 API: ', error);
-        if (!response.headersSent) {
-            response.send({ error: true });
-        } else {
-            response.end();
-        }
+        sendCaughtGenerationError(response, error);
     }
 }
 
@@ -955,11 +976,7 @@ async function sendMistralAIRequest(request, response) {
         }
     } catch (error) {
         console.error('Error communicating with MistralAI API: ', error);
-        if (!response.headersSent) {
-            response.send({ error: true });
-        } else {
-            response.end();
-        }
+        sendCaughtGenerationError(response, error);
     }
 }
 
@@ -1055,11 +1072,7 @@ async function sendCohereRequest(request, response) {
         }
     } catch (error) {
         console.error('Error communicating with Cohere API: ', error);
-        if (!response.headersSent) {
-            response.send({ error: true });
-        } else {
-            response.end();
-        }
+        sendCaughtGenerationError(response, error);
     }
 }
 
@@ -1167,11 +1180,7 @@ async function sendDeepSeekRequest(request, response) {
         }
     } catch (error) {
         console.error('Error communicating with DeepSeek API: ', error);
-        if (!response.headersSent) {
-            response.send({ error: true });
-        } else {
-            response.end();
-        }
+        sendCaughtGenerationError(response, error);
     }
 }
 
@@ -1273,11 +1282,7 @@ async function sendXaiRequest(request, response) {
         }
     } catch (error) {
         console.error('Error communicating with xAI API: ', error);
-        if (!response.headersSent) {
-            response.send({ error: true });
-        } else {
-            response.end();
-        }
+        sendCaughtGenerationError(response, error);
     }
 }
 
@@ -1378,11 +1383,7 @@ async function sendAimlapiRequest(request, response) {
         }
     } catch (error) {
         console.error('Error communicating with AI/ML API: ', error);
-        if (!response.headersSent) {
-            response.send({ error: true });
-        } else {
-            response.end();
-        }
+        sendCaughtGenerationError(response, error);
     }
 }
 
@@ -1490,11 +1491,7 @@ async function sendElectronHubRequest(request, response) {
         }
     } catch (error) {
         console.error('Error communicating with Electron Hub: ', error);
-        if (!response.headersSent) {
-            response.send({ error: true });
-        } else {
-            response.end();
-        }
+        sendCaughtGenerationError(response, error);
     }
 }
 
@@ -1591,11 +1588,7 @@ async function sendChutesRequest(request, response) {
         }
     } catch (error) {
         console.error('Error communicating with Chutes: ', error);
-        if (!response.headersSent) {
-            response.send({ error: true });
-        } else {
-            response.end();
-        }
+        sendCaughtGenerationError(response, error);
     }
 }
 
@@ -1672,11 +1665,7 @@ async function sendMinimaxRequest(request, response) {
         }
     } catch (error) {
         console.error('Error communicating with MiniMax: ', error);
-        if (!response.headersSent) {
-            response.send({ error: true });
-        } else {
-            response.end();
-        }
+        sendCaughtGenerationError(response, error);
     }
 }
 
