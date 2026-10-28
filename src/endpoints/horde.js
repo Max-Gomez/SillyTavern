@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 import express from 'express';
 import { AIHorde, ModelGenerationInputStableSamplers, ModelInterrogationFormTypes, HordeAsyncRequestStates } from '@zeldafan0225/ai_horde';
-import { getVersion, delay, Cache } from '../util.js';
+import { getVersion, delay, Cache, generationErrorBody } from '../util.js';
 import { readSecret, SECRET_KEYS } from './secrets.js';
 
 const ANONYMOUS_KEY = '0000000000';
@@ -207,7 +207,7 @@ router.post('/generate-text', async (request, response) => {
         return response.send(data);
     } catch (error) {
         console.error(error);
-        return response.send({ error: true });
+        return response.send(generationErrorBody(error));
     }
 });
 

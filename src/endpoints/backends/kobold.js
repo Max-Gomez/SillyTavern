@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import express from 'express';
 import fetch from 'node-fetch';
 
-import { forwardFetchResponse, delay } from '../../util.js';
+import { forwardFetchResponse, delay, generationErrorBody } from '../../util.js';
 import { getOverrideHeaders, setAdditionalHeaders, setAdditionalHeadersByType } from '../../additional-headers.js';
 import { TEXTGEN_TYPES } from '../../constants.js';
 
@@ -131,7 +131,7 @@ router.post('/generate', async function (request, response_generate) {
                     if ('status' in error) {
                         console.error('Status Code from Kobold:', error.status);
                     }
-                    return response_generate.send({ error: true });
+                    return response_generate.send(generationErrorBody(error));
             }
         }
     }

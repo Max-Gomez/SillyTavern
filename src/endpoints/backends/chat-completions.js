@@ -25,6 +25,7 @@ import {
 } from '../../constants.js';
 import {
     forwardFetchResponse,
+    generationErrorBody,
     getConfigValue,
     tryParse,
     uuidv4,
@@ -441,7 +442,7 @@ async function sendClaudeRequest(request, response) {
     } catch (error) {
         console.error(color.red(`Error communicating with Claude: ${error}\n${divider}`));
         if (!response.headersSent) {
-            return response.status(500).send({ error: true });
+            return response.status(500).send(generationErrorBody(error));
         }
     }
 }
@@ -744,7 +745,7 @@ async function sendMakerSuiteRequest(request, response) {
             } catch (error) {
                 console.error('Error forwarding streaming response:', error);
                 if (!response.headersSent) {
-                    return response.status(500).send({ error: true });
+                    return response.status(500).send(generationErrorBody(error));
                 }
             }
         } else {
@@ -787,7 +788,7 @@ async function sendMakerSuiteRequest(request, response) {
     } catch (error) {
         console.error(`Error communicating with ${apiName} API:`, error);
         if (!response.headersSent) {
-            return response.status(500).send({ error: true });
+            return response.status(500).send(generationErrorBody(error));
         }
     }
 }
@@ -866,7 +867,7 @@ async function sendAI21Request(request, response) {
     } catch (error) {
         console.error('Error communicating with AI21 API: ', error);
         if (!response.headersSent) {
-            response.send({ error: true });
+            response.send(generationErrorBody(error));
         } else {
             response.end();
         }
@@ -956,7 +957,7 @@ async function sendMistralAIRequest(request, response) {
     } catch (error) {
         console.error('Error communicating with MistralAI API: ', error);
         if (!response.headersSent) {
-            response.send({ error: true });
+            response.send(generationErrorBody(error));
         } else {
             response.end();
         }
@@ -1056,7 +1057,7 @@ async function sendCohereRequest(request, response) {
     } catch (error) {
         console.error('Error communicating with Cohere API: ', error);
         if (!response.headersSent) {
-            response.send({ error: true });
+            response.send(generationErrorBody(error));
         } else {
             response.end();
         }
@@ -1168,7 +1169,7 @@ async function sendDeepSeekRequest(request, response) {
     } catch (error) {
         console.error('Error communicating with DeepSeek API: ', error);
         if (!response.headersSent) {
-            response.send({ error: true });
+            response.send(generationErrorBody(error));
         } else {
             response.end();
         }
@@ -1274,7 +1275,7 @@ async function sendXaiRequest(request, response) {
     } catch (error) {
         console.error('Error communicating with xAI API: ', error);
         if (!response.headersSent) {
-            response.send({ error: true });
+            response.send(generationErrorBody(error));
         } else {
             response.end();
         }
@@ -1379,7 +1380,7 @@ async function sendAimlapiRequest(request, response) {
     } catch (error) {
         console.error('Error communicating with AI/ML API: ', error);
         if (!response.headersSent) {
-            response.send({ error: true });
+            response.send(generationErrorBody(error));
         } else {
             response.end();
         }
@@ -1491,7 +1492,7 @@ async function sendElectronHubRequest(request, response) {
     } catch (error) {
         console.error('Error communicating with Electron Hub: ', error);
         if (!response.headersSent) {
-            response.send({ error: true });
+            response.send(generationErrorBody(error));
         } else {
             response.end();
         }
@@ -1592,7 +1593,7 @@ async function sendChutesRequest(request, response) {
     } catch (error) {
         console.error('Error communicating with Chutes: ', error);
         if (!response.headersSent) {
-            response.send({ error: true });
+            response.send(generationErrorBody(error));
         } else {
             response.end();
         }
@@ -1673,7 +1674,7 @@ async function sendMinimaxRequest(request, response) {
     } catch (error) {
         console.error('Error communicating with MiniMax: ', error);
         if (!response.headersSent) {
-            response.send({ error: true });
+            response.send(generationErrorBody(error));
         } else {
             response.end();
         }

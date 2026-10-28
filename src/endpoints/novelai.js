@@ -5,7 +5,7 @@ import fetch from 'node-fetch';
 import express from 'express';
 
 import { readSecret, SECRET_KEYS } from './secrets.js';
-import { readAllChunks, extractFileFromZipBuffer, forwardFetchResponse } from '../util.js';
+import { readAllChunks, extractFileFromZipBuffer, forwardFetchResponse, generationErrorBody } from '../util.js';
 
 const API_NOVELAI = 'https://api.novelai.net';
 const TEXT_NOVELAI = 'https://text.novelai.net';
@@ -293,7 +293,7 @@ router.post('/generate', async function (req, res) {
             return res.send(data);
         }
     } catch (error) {
-        return res.send({ error: true });
+        return res.send(generationErrorBody(error));
     }
 });
 
