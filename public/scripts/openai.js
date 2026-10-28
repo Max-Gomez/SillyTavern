@@ -1715,6 +1715,42 @@ function checkModerationError(data, { quiet = false } = {}) {
 }
 
 /**
+ * Shows a notice if the API stopped the reply early (length limit or content filter).
+ * @param {any} data Response data or streaming chunk
+ * @returns {boolean} Whether a notice was shown
+ */
+function checkFinishReason(data) {
+    const finishReason = data?.choices?.[0]?.finish_reason
+        ?? data?.candidates?.[0]?.finishReason
+        ?? data?.delta?.stop_reason
+        ?? data?.delta?.finish_reason;
+
+    if (typeof finishReason !== 'string') {
+        return false;
+    }
+
+    switch (finishReason.toLowerCase()) {
+        case 'length':
+        case 'max_tokens':
+        case 'model_length':
+            toastr.warning(t`The reply was cut off because it reached the maximum response length.`, t`Response stopped early`);
+            return true;
+        case 'content_filter':
+        case 'refusal':
+        case 'safety':
+        case 'recitation':
+        case 'blocklist':
+        case 'prohibited_content':
+        case 'spii':
+        case 'image_safety':
+            toastr.warning(t`The reply was stopped by the API content filter (${finishReason}).`, t`Response stopped early`);
+            return true;
+        default:
+            return false;
+    }
+}
+
+/**
  * Gets the API model for the selected chat completion source.
  * @param {ChatCompletionSettings} settings Chat completion settings
  * @returns {string} API model
@@ -3168,6 +3204,7 @@ async function sendOpenAIRequest(type, messages, signal, { jsonSchema = null } =
             const swipes = [];
             const toolCalls = [];
             const state = { reasoning: '', images: [], signature: '', toolSignatures: {} };
+            let finishReasonShown = false;
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) return;
@@ -3175,6 +3212,10 @@ async function sendOpenAIRequest(type, messages, signal, { jsonSchema = null } =
                 if (rawData === '[DONE]') return;
                 tryParseStreamingError(response, rawData);
                 const parsed = JSON.parse(rawData);
+
+                if (!finishReasonShown) {
+                    finishReasonShown = checkFinishReason(parsed);
+                }
 
                 if (canMultiSwipe && Array.isArray(parsed?.choices) && parsed?.choices?.[0]?.index > 0) {
                     const swipeIndex = parsed.choices[0].index - 1;
@@ -3200,6 +3241,8 @@ async function sendOpenAIRequest(type, messages, signal, { jsonSchema = null } =
             toastr.error(message, t`API returned an error`);
             throw new Error(message);
         }
+
+        checkFinishReason(data);
 
         if (type !== 'quiet') {
             const logprobs = parseChatCompletionLogprobs(data);

@@ -435,7 +435,7 @@ async function sendClaudeRequest(request, response) {
             console.debug('Claude response:', generateResponseJson);
 
             // Wrap it back to OAI format + save the original content
-            const reply = { choices: [{ 'message': { 'content': responseText } }], content: generateResponseJson.content };
+            const reply = { choices: [{ 'message': { 'content': responseText }, 'finish_reason': generateResponseJson.stop_reason }], content: generateResponseJson.content };
             return response.send(reply);
         }
     } catch (error) {
@@ -777,11 +777,14 @@ async function sendMakerSuiteRequest(request, response) {
             if (!responseText && !functionCall && !inlineData) {
                 let message = `${apiName} Candidate text empty`;
                 console.warn(message, generateResponseJson);
+                if (candidates[0].finishReason) {
+                    message += `\nFinish reason: ${candidates[0].finishReason}`;
+                }
                 return response.send({ error: { message } });
             }
 
             // Wrap it back to OAI format (responseContent includes thought signatures in parts array)
-            const reply = { choices: [{ 'message': { 'content': responseText } }], responseContent };
+            const reply = { choices: [{ 'message': { 'content': responseText }, 'finish_reason': candidates[0].finishReason }], responseContent };
             return response.send(reply);
         }
     } catch (error) {
