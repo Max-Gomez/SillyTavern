@@ -722,6 +722,24 @@ function convertWorldInfoToCharacterBook(name, entries) {
 }
 
 /**
+ * Gets the image to embed the card into when the imported file has no image of its own.
+ * Keeps the current avatar when an existing character is being replaced.
+ * @param {string|undefined} preservedFileName Preserved file name
+ * @param {import('../users.js').UserDirectoryList} directories User directories
+ * @returns {string} Path to the image file
+ */
+function getFallbackAvatarPath(preservedFileName, directories) {
+    if (preservedFileName) {
+        const existingPath = path.join(directories.characters, `${preservedFileName}.png`);
+        if (fs.existsSync(existingPath)) {
+            return existingPath;
+        }
+    }
+
+    return DEFAULT_AVATAR_PATH;
+}
+
+/**
  * Import a character from a YAML file.
  * @param {string} uploadPath Path to the uploaded file
  * @param {{ request: import('express').Request, response: import('express').Response }} context Express request and response objects
@@ -750,7 +768,7 @@ async function importFromYaml(uploadPath, context, preservedFileName) {
         'creator': '',
         'tags': '',
     }, context.request.user.directories);
-    const result = await writeCharacterData(DEFAULT_AVATAR_PATH, JSON.stringify(char), fileName, context.request);
+    const result = await writeCharacterData(getFallbackAvatarPath(preservedFileName, context.request.user.directories), JSON.stringify(char), fileName, context.request);
     return result ? fileName : '';
 }
 
@@ -898,7 +916,7 @@ async function importFromJson(uploadPath, { request }, preservedFileName) {
         jsonData.create_date = new Date().toISOString();
         const pngName = preservedFileName || getPngName(jsonData.name, request.user.directories);
         const char = JSON.stringify(jsonData);
-        const result = await writeCharacterData(DEFAULT_AVATAR_PATH, char, pngName, request);
+        const result = await writeCharacterData(getFallbackAvatarPath(preservedFileName, request.user.directories), char, pngName, request);
         return result ? pngName : '';
     } else if (jsonData.name !== undefined) {
         console.info('Importing from v1 json');
@@ -924,7 +942,7 @@ async function importFromJson(uploadPath, { request }, preservedFileName) {
         };
         char = convertToV2(char, request.user.directories);
         let charJSON = JSON.stringify(char);
-        const result = await writeCharacterData(DEFAULT_AVATAR_PATH, charJSON, pngName, request);
+        const result = await writeCharacterData(getFallbackAvatarPath(preservedFileName, request.user.directories), charJSON, pngName, request);
         return result ? pngName : '';
     } else if (jsonData.char_name !== undefined) {
         //json Pygmalion notepad
@@ -951,7 +969,7 @@ async function importFromJson(uploadPath, { request }, preservedFileName) {
         };
         char = convertToV2(char, request.user.directories);
         const charJSON = JSON.stringify(char);
-        const result = await writeCharacterData(DEFAULT_AVATAR_PATH, charJSON, pngName, request);
+        const result = await writeCharacterData(getFallbackAvatarPath(preservedFileName, request.user.directories), charJSON, pngName, request);
         return result ? pngName : '';
     }
 
